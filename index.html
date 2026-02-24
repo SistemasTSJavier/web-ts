@@ -71,16 +71,19 @@
     <div class="modal-content">
       <h3>Nueva reservación</h3>
       <form id="reservation-form">
-        <label>Hora</label>
-        <select id="form-hora" required></select>
+        <label>Hora de inicio</label>
+        <select id="form-hora-inicio" required title="Ej. 11:00"></select>
+        <label>Hora de fin (rango, ej. 11:00 a 14:00 = 11am a 2pm)</label>
+        <select id="form-hora-fin" title="Misma hora = solo una hora; mayor = rango"></select>
         <label>Fecha</label>
         <input type="date" id="form-fecha" required>
         <label>Organizador</label>
         <input type="text" id="form-organizador" required placeholder="Correo del organizador">
         <label>Asunto</label>
         <input type="text" id="form-asunto" required>
-        <label>Invitados</label>
-        <textarea id="form-invitados" rows="2"></textarea>
+        <label>Invitados (correos, separados por coma o línea)</label>
+        <textarea id="form-invitados" rows="2" placeholder="ej. correo1@empresa.com, correo2@empresa.com"></textarea>
+        <button type="button" class="btn-secondary" id="btn-mailto-form" title="Abre Outlook con Para, Asunto y mensaje prellenados">Abrir en Outlook (enviar invitación)</button>
         <div class="form-actions">
           <button type="button" class="btn-secondary" id="btn-cancel-form">Cancelar</button>
           <button type="submit" class="btn-primary">Guardar reservación</button>
@@ -96,6 +99,7 @@
       <h3>Detalle de reservación</h3>
       <dl id="detail-list"></dl>
       <div class="form-actions">
+        <button type="button" class="btn-secondary" id="btn-mailto-detail" title="Abre Outlook con invitados y mensaje prellenados">Abrir en Outlook (enviar invitación)</button>
         <button type="button" class="btn-danger hidden" id="btn-delete">Eliminar</button>
         <button type="button" class="btn-secondary" id="btn-close-detail">Cerrar</button>
       </div>

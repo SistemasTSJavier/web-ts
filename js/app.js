@@ -51,7 +51,7 @@
 
   async function loadDay() {
     if (!supabase) return;
-    const key = formatDateKey(currentDate);
+    const key = formatDateKeyLocal(currentDate);
     const { data, error } = await supabase
       .from('reservations')
       .select('*')
@@ -224,8 +224,10 @@
   }
 
   function setupNewReservation() {
+    const selInicio = $('form-hora-inicio');
+    if (!selInicio) return;
     fillHourSelect('form-hora-inicio', HOUR_START, HOUR_END);
-    const inicioVal = $('form-hora-inicio').value;
+    const inicioVal = selInicio.value;
     fillHourSelect('form-hora-fin', parseInt(inicioVal, 10), HOUR_END);
     $('form-hora-fin').value = inicioVal;
     $('form-fecha').value = formatDateKeyLocal(currentDate);
@@ -365,14 +367,18 @@
     $('btn-close-detail').onclick = () => $('modal-detail').classList.add('hidden');
     if ($('btn-mailto-form')) $('btn-mailto-form').onclick = openMailtoFromForm;
 
-    $('form-hora-inicio').addEventListener('change', () => {
-      const inicio = parseInt($('form-hora-inicio').value, 10);
-      fillHourSelect('form-hora-fin', inicio, HOUR_END);
-      const finVal = parseInt($('form-hora-fin').value, 10);
-      if (finVal < inicio) $('form-hora-fin').value = inicio;
-    });
+    const formHoraInicio = $('form-hora-inicio');
+    if (formHoraInicio) {
+      formHoraInicio.addEventListener('change', () => {
+        const inicio = parseInt($('form-hora-inicio').value, 10);
+        fillHourSelect('form-hora-fin', inicio, HOUR_END);
+        const finVal = parseInt($('form-hora-fin').value, 10);
+        if (finVal < inicio) $('form-hora-fin').value = inicio;
+      });
+    }
 
-    $('reservation-form').addEventListener('submit', submitReservation);
+    const reservationForm = $('reservation-form');
+    if (reservationForm) reservationForm.addEventListener('submit', submitReservation);
 
     $('modal-form').onclick = (e) => {
       if (e.target.id === 'modal-form') e.target.classList.add('hidden');

@@ -82,6 +82,11 @@ body {
   background: #333;
 }
 
+#btn-mailto-form {
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
 .error-msg {
   color: #c00;
   font-size: 0.875rem;
