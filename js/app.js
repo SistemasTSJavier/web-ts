@@ -14,7 +14,13 @@
   let realtimeChannel = null;
 
   const $ = (id) => document.getElementById(id);
-  const formatDateKey = (d) => d.toISOString().slice(0, 10);
+  // Fecha en zona local (YYYY-MM-DD) para que no cambie al día anterior por UTC
+  const formatDateKeyLocal = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  };
   const formatDateLabel = (d) => {
     return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
   };
@@ -29,13 +35,18 @@
     return String(h).padStart(2, '0') + ':00';
   }
 
-  function reservationAtHour(hour) {
+  function parseHourFromHora(horaStr) {
+    if (!horaStr) return null;
+    const match = horaStr.match(/^(\d{1,2})/);
+    return match ? parseInt(match[1], 10) : null;
+  }
+
+  function reservationStartingAtHour(hour) {
     const prefix = hourToLabel(hour).slice(0, 2);
-    const r = reservations.find((x) => {
-      const h = x.hora.slice(0, 2);
+    return reservations.find((x) => {
+      const h = (x.hora || '').slice(0, 2);
       return h === prefix;
-    });
-    return r || null;
+    }) || null;
   }
 
   async function loadDay() {
@@ -50,17 +61,24 @@
     renderTable();
   }
 
+  function formatHoraDisplay(r) {
+    if (!r || !r.hora) return '—';
+    return r.hora_fin && r.hora_fin.trim() !== '' && r.hora_fin !== r.hora
+      ? r.hora + ' - ' + r.hora_fin
+      : r.hora;
+  }
+
   function renderTable() {
     const tbody = $('schedule-body');
     if (!tbody) return;
     tbody.innerHTML = '';
     for (let h = HOUR_START; h <= HOUR_END; h++) {
-      const r = reservationAtHour(h);
+      const r = reservationStartingAtHour(h);
       const tr = document.createElement('tr');
       if (r) tr.classList.add('clickable');
       tr.dataset.hour = h;
       tr.innerHTML =
-        '<td class="hour">' + hourToLabel(h) + '</td>' +
+        '<td class="hour">' + (r ? formatHoraDisplay(r) : hourToLabel(h)) + '</td>' +
         '<td>' + (r ? escapeHtml(r.responsable) : '—') + '</td>' +
         '<td>' + (r ? escapeHtml(r.asunto) : '—') + '</td>' +
         '<td>' + (r && r.participantes ? escapeHtml(r.participantes) : '—') + '</td>';
@@ -77,13 +95,84 @@
     return div.innerHTML;
   }
 
+  function parseEmailsFromParticipantes(text) {
+    if (!text || !text.trim()) return [];
+    return text.split(/[\s,;\n]+/).map((s) => s.trim()).filter((s) => s && s.includes('@'));
+  }
+
+  function buildMailtoLink(options) {
+    const { toEmails, subject, body } = options;
+    const to = Array.isArray(toEmails) ? toEmails.filter(Boolean).join(', ') : '';
+    const params = new URLSearchParams();
+    if (to) params.set('to', to);
+    if (subject) params.set('subject', subject);
+    if (body) params.set('body', body);
+    const q = params.toString();
+    return 'mailto:' + (q ? '?' + q : '');
+  }
+
+  function openMailtoFromForm() {
+    const organizador = $('form-organizador').value.trim();
+    const asunto = $('form-asunto').value.trim();
+    const fecha = $('form-fecha').value;
+    const horaInicio = $('form-hora-inicio').value;
+    const horaFin = $('form-hora-fin').value;
+    const invitados = $('form-invitados').value.trim();
+    const emails = parseEmailsFromParticipantes(invitados);
+    const fechaLabel = fecha ? formatDateLabel(new Date(fecha + 'T12:00:00')) : '';
+    const horaStr = horaInicio !== horaFin
+      ? hourToLabel(parseInt(horaInicio, 10)) + ' a ' + hourToLabel(parseInt(horaFin, 10))
+      : hourToLabel(parseInt(horaInicio, 10));
+    const appUrl = window.location.origin;
+    const bodyLines = [
+      'Invitación a reservación – Sala de Juntas',
+      '',
+      'Organizado por: ' + (organizador || '—'),
+      'Asunto: ' + (asunto || '—'),
+      'Fecha: ' + fechaLabel,
+      'Hora: ' + horaStr,
+      '',
+      'Enlace a la agenda: ' + appUrl,
+    ];
+    const mailto = buildMailtoLink({
+      toEmails: emails,
+      subject: asunto ? 'Reservación: ' + asunto : 'Invitación Sala de Juntas',
+      body: bodyLines.join('\r\n'),
+    });
+    window.location.href = mailto;
+  }
+
+  function openMailtoFromDetail(r) {
+    const emails = parseEmailsFromParticipantes(r.participantes || '');
+    const fechaLabel = r.fecha ? formatDateLabel(new Date(r.fecha + 'T12:00:00')) : '';
+    const horaStr = formatHoraDisplay(r);
+    const appUrl = window.location.origin;
+    const bodyLines = [
+      'Invitación a reservación – Sala de Juntas',
+      '',
+      'Organizado por: ' + (r.responsable || '—'),
+      'Asunto: ' + (r.asunto || '—'),
+      'Fecha: ' + fechaLabel,
+      'Hora: ' + horaStr,
+      '',
+      'Enlace a la agenda: ' + appUrl,
+    ];
+    const mailto = buildMailtoLink({
+      toEmails: emails,
+      subject: r.asunto ? 'Reservación: ' + r.asunto : 'Invitación Sala de Juntas',
+      body: bodyLines.join('\r\n'),
+    });
+    window.location.href = mailto;
+  }
+
   function openDetail(r) {
     const list = $('detail-list');
     const btnDelete = $('btn-delete');
+    const btnMailtoDetail = $('btn-mailto-detail');
     if (!list) return;
     list.innerHTML =
       '<dt>Fecha</dt><dd>' + formatDateLabel(new Date(r.fecha + 'T12:00:00')) + '</dd>' +
-      '<dt>Hora</dt><dd>' + r.hora + '</dd>' +
+      '<dt>Hora</dt><dd>' + formatHoraDisplay(r) + '</dd>' +
       '<dt>Organizador</dt><dd>' + escapeHtml(r.responsable) + '</dd>' +
       '<dt>Asunto</dt><dd>' + escapeHtml(r.asunto) + '</dd>' +
       (r.participantes ? '<dt>Invitados</dt><dd>' + escapeHtml(r.participantes) + '</dd>' : '') +
@@ -91,6 +180,10 @@
     if (btnDelete) {
       btnDelete.classList.toggle('hidden', r.reservado_por !== currentUserEmail);
       btnDelete.onclick = () => deleteReservation(r.id);
+    }
+    if (btnMailtoDetail) {
+      btnMailtoDetail.onclick = () => openMailtoFromDetail(r);
+      btnMailtoDetail.classList.toggle('hidden', !(r.participantes && r.participantes.trim()));
     }
     $('modal-detail').classList.remove('hidden');
   }
@@ -118,18 +211,24 @@
     };
   }
 
-  function setupNewReservation() {
-    const select = $('form-hora');
-    if (select) {
-      select.innerHTML = '';
-      for (let h = HOUR_START; h <= HOUR_END; h++) {
-        const opt = document.createElement('option');
-        opt.value = h;
-        opt.textContent = hourToLabel(h);
-        select.appendChild(opt);
-      }
+  function fillHourSelect(selectId, startHour, endHour) {
+    const select = $(selectId);
+    if (!select) return;
+    select.innerHTML = '';
+    for (let h = startHour; h <= endHour; h++) {
+      const opt = document.createElement('option');
+      opt.value = h;
+      opt.textContent = hourToLabel(h);
+      select.appendChild(opt);
     }
-    $('form-fecha').value = formatDateKey(currentDate);
+  }
+
+  function setupNewReservation() {
+    fillHourSelect('form-hora-inicio', HOUR_START, HOUR_END);
+    const inicioVal = $('form-hora-inicio').value;
+    fillHourSelect('form-hora-fin', parseInt(inicioVal, 10), HOUR_END);
+    $('form-hora-fin').value = inicioVal;
+    $('form-fecha').value = formatDateKeyLocal(currentDate);
     $('form-organizador').value = currentUserEmail || '';
     $('form-organizador').placeholder = 'Correo (predeterminado: inicio de sesión)';
     $('form-asunto').value = '';
@@ -137,10 +236,15 @@
     $('form-error').textContent = '';
   }
 
+  function rangesOverlap(aStart, aEnd, bStart, bEnd) {
+    return aStart < bEnd && bStart < aEnd;
+  }
+
   async function submitReservation(e) {
     e.preventDefault();
     if (!supabase) return;
-    const hora = parseInt($('form-hora').value, 10);
+    const horaInicio = parseInt($('form-hora-inicio').value, 10);
+    const horaFin = parseInt($('form-hora-fin').value, 10);
     const fecha = $('form-fecha').value;
     const organizador = $('form-organizador').value.trim();
     const asunto = $('form-asunto').value.trim();
@@ -149,23 +253,34 @@
       $('form-error').textContent = 'Organizador y asunto son obligatorios.';
       return;
     }
-    const horaStr = hourToLabel(hora);
-    const existing = reservations.filter((r) => r.fecha === fecha && r.hora && r.hora.startsWith(String(hora).padStart(2, '0')));
-    if (existing.length > 0) {
-      $('form-error').textContent = 'Ya hay una reserva a las ' + horaStr + ' ese día. Solo se permite una reserva por hora.';
+    const startStr = hourToLabel(horaInicio);
+    const endStr = hourToLabel(horaFin);
+    const useRange = horaFin > horaInicio;
+    const newStart = horaInicio;
+    const newEnd = useRange ? horaFin + 1 : horaInicio + 1;
+    const overlapping = reservations.filter((r) => {
+      if (r.fecha !== fecha) return false;
+      const rStart = parseHourFromHora(r.hora);
+      const rEnd = r.hora_fin ? parseHourFromHora(r.hora_fin) + 1 : (rStart + 1);
+      return rangesOverlap(newStart, newEnd, rStart, rEnd);
+    });
+    if (overlapping.length > 0) {
+      $('form-error').textContent = 'Ya hay una reserva que coincide con ese horario (de ' + startStr + (useRange ? ' a ' + endStr : '') + ').';
       return;
     }
     $('form-error').textContent = '';
-    const { error } = await supabase.from('reservations').insert({
+    const payload = {
       fecha,
-      hora: horaStr,
+      hora: startStr,
       responsable: organizador,
       asunto,
       participantes: invitados,
       reservado_por: currentUserEmail || '',
       nombre_contacto: '',
       correo_notificacion: '',
-    });
+    };
+    if (useRange) payload.hora_fin = endStr;
+    const { error } = await supabase.from('reservations').insert(payload);
     if (error) {
       $('form-error').textContent = error.message;
       return;
@@ -248,6 +363,14 @@
 
     $('btn-cancel-form').onclick = () => $('modal-form').classList.add('hidden');
     $('btn-close-detail').onclick = () => $('modal-detail').classList.add('hidden');
+    if ($('btn-mailto-form')) $('btn-mailto-form').onclick = openMailtoFromForm;
+
+    $('form-hora-inicio').addEventListener('change', () => {
+      const inicio = parseInt($('form-hora-inicio').value, 10);
+      fillHourSelect('form-hora-fin', inicio, HOUR_END);
+      const finVal = parseInt($('form-hora-fin').value, 10);
+      if (finVal < inicio) $('form-hora-fin').value = inicio;
+    });
 
     $('reservation-form').addEventListener('submit', submitReservation);
 
