@@ -1,19 +1,62 @@
-# Sala de Juntas (HTML/CSS/JS + Supabase)
+# Sala de Juntas (TypeScript + Vite + Supabase)
 
-Versión web estática: mismo backend Supabase (auth, tabla `reservations`, realtime).
+Agenda web de la sala de juntas de **TACTICAL SUPPORT**: autenticación, horario diario, altas/bajas y actualizaciones en tiempo real.
+
+## Requisitos
+
+- Node.js 20+
+- Proyecto Supabase con Auth y tabla `reservations`
 
 ## Configuración
 
-1. En **`js/config.js`** sustituye `TU_ANON_KEY_AQUI` por tu clave anon de Supabase (Settings → API).
-2. (Opcional) Copia `logo.png` a la carpeta **`assets/`** dentro de `web-static`.
+1. Copia `.env.example` a `.env` y rellena:
 
-## Probar en local
+```env
+VITE_SUPABASE_URL=https://TU_PROYECTO.supabase.co
+VITE_SUPABASE_ANON_KEY=tu_anon_key
+```
 
-Abre `index.html` en el navegador o sirve la carpeta con un servidor local (ej. `npx serve .`).
+2. (Opcional) Coloca el logo en `public/assets/logo.png`.
 
-## Desplegar en GitHub Pages
+3. (Recomendado) Ejecuta las políticas RLS de `supabase/rls.sql` en el SQL Editor de Supabase.
 
-- Opción A: Sube el contenido de `web-static` a la raíz de tu repo (o a una carpeta `docs`) y activa Pages desde esa carpeta.
-- Opción B: Usa el workflow que despliega esta carpeta (sin compilar Flutter).
+## Desarrollo
 
-La URL de la app será la de tu Pages (ej. `https://sistemastsjavier.github.io/Agenda_semanal_TS/`). Si está en un subpath, los enlaces ya son relativos.
+```bash
+npm install
+npm run dev
+```
+
+## Build / producción
+
+```bash
+npm run build
+npm run preview
+```
+
+La salida queda en `dist/`. Puedes publicar esa carpeta en GitHub Pages, Netlify, Cloudflare Pages, etc.
+
+## Estructura
+
+```
+src/
+  app.ts              # UI, auth, reservas, realtime
+  main.ts             # Entrada
+  supabaseClient.ts   # Cliente Supabase
+  types.ts
+  lib/                # Fechas, horas, mailto, HTML
+  styles/style.css
+public/assets/        # Estáticos (logo)
+supabase/rls.sql      # Políticas recomendadas
+```
+
+## Campos usados en `reservations`
+
+| Campo | Uso |
+|-------|-----|
+| `fecha` | Día (YYYY-MM-DD) |
+| `hora` / `hora_fin` | Inicio y fin del rango |
+| `responsable` | Organizador |
+| `asunto` | Título |
+| `participantes` | Invitados |
+| `reservado_por` | Email del usuario autenticado (dueño) |

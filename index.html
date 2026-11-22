@@ -4,22 +4,61 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sala de Juntas - TACTICAL SUPPORT</title>
-  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <!-- Pantalla de login -->
   <div id="login-screen" class="screen">
-    <div class="login-box">
-      <h1>Sala de Juntas</h1>
-      <p class="login-subtitle">TACTICAL SUPPORT</p>
-      <form id="login-form">
-        <label for="email">Correo</label>
-        <input type="email" id="email" required placeholder="tu@correo.com">
-        <label for="password">Contraseña</label>
-        <input type="password" id="password" required>
-        <button type="submit" id="login-btn">Iniciar sesión</button>
-      </form>
-      <p id="login-error" class="error-msg"></p>
+    <div class="login-shell">
+      <!-- Jerarquía: sello → figura → lema (un solo eje visual) -->
+      <aside class="login-brand-panel" aria-label="Marca Tactical Support">
+        <div class="login-brand-stack">
+          <img
+            src="/assets/logo.png"
+            alt="Tactical Support"
+            class="login-logo"
+            width="120"
+            height="120"
+            decoding="async"
+          >
+          <div class="login-polo-wrap">
+            <img
+              src="/assets/polo.webp"
+              alt="Oficial Tactical Support"
+              class="login-polo"
+              width="280"
+              height="420"
+              decoding="async"
+            >
+          </div>
+          <img
+            src="/assets/eslogan.webp"
+            alt="Vive el hábito de la excelencia"
+            class="login-eslogan"
+            width="360"
+            height="90"
+            decoding="async"
+          >
+        </div>
+      </aside>
+
+      <section class="login-box" aria-labelledby="login-title">
+        <header class="login-box-header">
+          <p class="login-kicker">Acceso corporativo</p>
+          <h1 id="login-title">Sala de Juntas</h1>
+        </header>
+        <form id="login-form" class="login-form">
+          <div class="field">
+            <label for="email">Correo</label>
+            <input type="email" id="email" name="email" required autocomplete="username" placeholder="tu@correo.com">
+          </div>
+          <div class="field">
+            <label for="password">Contraseña</label>
+            <input type="password" id="password" name="password" required autocomplete="current-password">
+          </div>
+          <button type="submit" id="login-btn">Iniciar sesión</button>
+        </form>
+        <p id="login-error" class="error-msg" role="alert"></p>
+      </section>
     </div>
   </div>
 
@@ -28,60 +67,79 @@
     <header class="app-header">
       <div class="header-center">
         <span class="brand">TACTICAL</span>
-        <img src="assets/logo.png" alt="Logo" class="header-logo" onerror="this.style.display='none'">
+        <img src="/assets/logo.png" alt="Logo Tactical Support" class="header-logo" onerror="this.style.display='none'">
         <span class="brand">SUPPORT</span>
       </div>
-      <button type="button" class="btn-icon" id="btn-logout" title="Cerrar sesión">⎋</button>
+      <button type="button" class="btn-icon btn-logout" id="btn-logout" title="Salir" aria-label="Salir">Salir</button>
     </header>
 
     <main class="app-main">
-      <h2 class="title-main">SALA DE JUNTAS</h2>
-      <p class="subtitle-main">TACTICAL SUPPORT · Horario reservado</p>
-
-      <div class="toolbar">
-        <button type="button" class="btn-icon" id="btn-prev">‹</button>
-        <span id="date-label">20 de febrero de 2026</span>
-        <button type="button" class="btn-icon" id="btn-next">›</button>
+      <div class="page-intro">
+        <h2 class="title-main">SALA DE JUNTAS</h2>
+        <img
+          src="/assets/eslogan.webp"
+          alt="Vive el hábito de la excelencia"
+          class="app-eslogan"
+          width="360"
+          height="90"
+          decoding="async"
+        >
       </div>
 
-      <h3 class="section-title">HORARIO RESERVADO</h3>
+      <div class="toolbar">
+        <button type="button" class="btn-icon" id="btn-prev" aria-label="Día anterior">‹</button>
+        <span id="date-label" aria-live="polite"></span>
+        <button type="button" class="btn-icon" id="btn-next" aria-label="Día siguiente">›</button>
+      </div>
+
+      <h3 class="section-title">RESERVACIONES DEL DÍA</h3>
+      <ul id="reservations-list" class="reservations-list" aria-live="polite"></ul>
+
+      <h3 class="section-title">HORAS DISPONIBLES</h3>
+      <p id="schedule-status" class="schedule-status hidden" role="status" aria-live="polite"></p>
 
       <div class="table-wrap">
         <table class="schedule-table">
           <thead>
             <tr>
-              <th>HORA</th>
-              <th>ORGANIZADOR</th>
-              <th>ASUNTO</th>
-              <th>INVITADOS</th>
+              <th scope="col">HORA</th>
+              <th scope="col">ESTADO</th>
             </tr>
           </thead>
           <tbody id="schedule-body">
-            <!-- Filas 08:00–18:00 se generan con JS -->
+            <!-- Solo horas libres 08:00–18:00 -->
           </tbody>
         </table>
       </div>
 
-      <button type="button" class="fab" id="btn-new-reservation">+ Nueva reservación</button>
     </main>
+
+    <button type="button" class="fab" id="btn-new-reservation">+ Nueva reservación</button>
   </div>
 
   <!-- Modal nueva reservación -->
-  <div id="modal-form" class="modal hidden">
+  <div
+    id="modal-form"
+    class="modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-form-title"
+    aria-hidden="true"
+  >
     <div class="modal-content">
-      <h3>Nueva reservación</h3>
+      <h3 id="modal-form-title">Nueva reservación</h3>
       <form id="reservation-form">
-        <label>Hora de inicio</label>
-        <select id="form-hora-inicio" required title="Ej. 11:00"></select>
-        <label>Hora de fin (rango, ej. 11:00 a 14:00 = 11am a 2pm)</label>
+        <label for="form-hora-inicio">Hora de inicio</label>
+        <select id="form-hora-inicio" required title="Ej. 11:00" data-initial-focus></select>
+        <label for="form-hora-fin">Hora de fin (rango, ej. 11:00 a 14:00 = 11am a 2pm)</label>
         <select id="form-hora-fin" title="Misma hora = solo una hora; mayor = rango"></select>
-        <label>Fecha</label>
+        <label for="form-fecha">Fecha</label>
         <input type="date" id="form-fecha" required>
-        <label>Organizador</label>
-        <input type="text" id="form-organizador" required placeholder="Correo del organizador">
-        <label>Asunto</label>
+        <label for="form-organizador">Organizador</label>
+        <input type="text" id="form-organizador" required placeholder="Correo del organizador" autocomplete="name">
+        <label for="form-asunto">Asunto</label>
         <input type="text" id="form-asunto" required>
-        <label>Invitados (correos, separados por coma o línea)</label>
+        <label for="form-invitados">Invitados (correos, separados por coma o línea)</label>
         <textarea id="form-invitados" rows="2" placeholder="ej. correo1@empresa.com, correo2@empresa.com"></textarea>
         <button type="button" class="btn-secondary" id="btn-mailto-form" title="Abre Outlook con Para, Asunto y mensaje prellenados">Abrir en Outlook (enviar invitación)</button>
         <div class="form-actions">
@@ -89,25 +147,30 @@
           <button type="submit" class="btn-primary">Guardar reservación</button>
         </div>
       </form>
-      <p id="form-error" class="error-msg"></p>
+      <p id="form-error" class="error-msg" role="alert"></p>
     </div>
   </div>
 
   <!-- Modal detalle -->
-  <div id="modal-detail" class="modal hidden">
+  <div
+    id="modal-detail"
+    class="modal hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-detail-title"
+    aria-hidden="true"
+  >
     <div class="modal-content">
-      <h3>Detalle de reservación</h3>
+      <h3 id="modal-detail-title">Detalle de reservación</h3>
       <dl id="detail-list"></dl>
       <div class="form-actions">
-        <button type="button" class="btn-secondary" id="btn-mailto-detail" title="Abre Outlook con invitados y mensaje prellenados">Abrir en Outlook (enviar invitación)</button>
+        <button type="button" class="btn-secondary" id="btn-mailto-detail" data-initial-focus title="Abre Outlook con invitados y mensaje prellenados">Abrir en Outlook (enviar invitación)</button>
         <button type="button" class="btn-danger hidden" id="btn-delete">Eliminar</button>
         <button type="button" class="btn-secondary" id="btn-close-detail">Cerrar</button>
       </div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/config.js"></script>
-  <script src="js/app.js"></script>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
