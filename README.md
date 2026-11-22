@@ -58,5 +58,8 @@ supabase/rls.sql      # Políticas recomendadas
 | `hora` / `hora_fin` | Inicio y fin del rango |
 | `responsable` | Organizador |
 | `asunto` | Título |
-| `participantes` | Invitados |
+| `colaboradores` | Nombres de asistentes a la reunión |
+| `participantes` | Invitados (correos) |
 | `reservado_por` | Email del usuario autenticado (dueño) |
+
+Si la tabla aún no tiene `colaboradores`, ejecuta `supabase/add_colaboradores.sql`.

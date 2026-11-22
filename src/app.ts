@@ -110,11 +110,13 @@ function renderReservationsList(): void {
       'aria-label',
       `Reservación ${formatHoraDisplay(r)}: ${r.asunto}. Abrir detalle.`,
     );
+    const colaboradoresLabel =
+      (r.colaboradores && r.colaboradores.trim()) || 'Sin colaboradores';
     li.innerHTML =
       `<span class="reservation-time">${escapeHtml(formatHoraDisplay(r))}</span>` +
       `<span class="reservation-meta">` +
       `<strong>${escapeHtml(r.asunto)}</strong>` +
-      `<span class="reservation-org">${escapeHtml(r.responsable)}</span>` +
+      `<span class="reservation-org">${escapeHtml(colaboradoresLabel)}</span>` +
       `</span>`;
     const open = () => openDetail(r);
     li.addEventListener('click', open);
@@ -163,6 +165,7 @@ function openMailtoFromForm(): void {
   const horaInicio = ($('form-hora-inicio') as HTMLSelectElement).value;
   const horaFin = ($('form-hora-fin') as HTMLSelectElement).value;
   const invitados = ($('form-invitados') as HTMLTextAreaElement).value.trim();
+  const colaboradores = ($('form-colaboradores') as HTMLTextAreaElement).value.trim();
   const emails = parseEmailsFromParticipantes(invitados);
   const fechaLabel = fecha ? formatDateLabel(dateFromKey(fecha)) : '';
   const horaStr =
@@ -174,6 +177,7 @@ function openMailtoFromForm(): void {
     '',
     `Organizado por: ${organizador || '—'}`,
     `Asunto: ${asunto || '—'}`,
+    `Colaboradores: ${colaboradores || '—'}`,
     `Fecha: ${fechaLabel}`,
     `Hora: ${horaStr}`,
     '',
@@ -194,6 +198,7 @@ function openMailtoFromDetail(r: Reservation): void {
     '',
     `Organizado por: ${r.responsable || '—'}`,
     `Asunto: ${r.asunto || '—'}`,
+    `Colaboradores: ${r.colaboradores || '—'}`,
     `Fecha: ${fechaLabel}`,
     `Hora: ${formatHoraDisplay(r)}`,
     '',
@@ -217,6 +222,9 @@ function openDetail(r: Reservation): void {
     `<dt>Hora</dt><dd>${formatHoraDisplay(r)}</dd>` +
     `<dt>Organizador</dt><dd>${escapeHtml(r.responsable)}</dd>` +
     `<dt>Asunto</dt><dd>${escapeHtml(r.asunto)}</dd>` +
+    `<dt>Colaboradores</dt><dd>${escapeHtml(
+      (r.colaboradores && r.colaboradores.trim()) || '—',
+    )}</dd>` +
     (r.participantes
       ? `<dt>Invitados</dt><dd>${escapeHtml(r.participantes)}</dd>`
       : '') +
@@ -303,6 +311,7 @@ function setupNewReservation(): void {
   ($('form-organizador') as HTMLInputElement).placeholder =
     'Correo (predeterminado: inicio de sesión)';
   ($('form-asunto') as HTMLInputElement).value = '';
+  ($('form-colaboradores') as HTMLTextAreaElement).value = '';
   ($('form-invitados') as HTMLTextAreaElement).value = '';
   const err = $('form-error');
   if (err) err.textContent = '';
@@ -332,6 +341,7 @@ async function submitReservation(e: Event): Promise<void> {
   const fecha = ($('form-fecha') as HTMLInputElement).value;
   const organizador = ($('form-organizador') as HTMLInputElement).value.trim();
   const asunto = ($('form-asunto') as HTMLInputElement).value.trim();
+  const colaboradores = ($('form-colaboradores') as HTMLTextAreaElement).value.trim();
   const invitados = ($('form-invitados') as HTMLTextAreaElement).value.trim();
   const formError = $('form-error');
   const submitBtn = document.querySelector(
@@ -340,6 +350,10 @@ async function submitReservation(e: Event): Promise<void> {
 
   if (!organizador || !asunto) {
     if (formError) formError.textContent = 'Organizador y asunto son obligatorios.';
+    return;
+  }
+  if (!colaboradores) {
+    if (formError) formError.textContent = 'Indica los colaboradores de la reunión.';
     return;
   }
 
@@ -376,6 +390,7 @@ async function submitReservation(e: Event): Promise<void> {
       hora: startStr,
       responsable: organizador,
       asunto,
+      colaboradores,
       participantes: invitados,
       reservado_por: currentUserEmail || '',
       nombre_contacto: '',
