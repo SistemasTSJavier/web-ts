@@ -575,6 +575,27 @@ textarea:focus-visible {
   mix-blend-mode: multiply;
 }
 
+.realtime-status {
+  display: inline-block;
+  margin: 0.65rem auto 0;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.realtime-status.is-live {
+  color: #0b5d2a;
+  background: #e7f7ec;
+}
+
+.realtime-status.is-offline {
+  color: #8a5a00;
+  background: #fff4d9;
+}
+
 @media (max-width: 640px) {
   .app-eslogan {
     width: min(240px, 82%);

@@ -12,6 +12,10 @@ import {
   reservationHourRange,
 } from './lib/hours';
 import { buildMailtoLink, parseEmailsFromParticipantes } from './lib/mailto';
+import {
+  extractFechaFromRealtimeRow,
+  normalizeReservationList,
+} from './lib/reservations';
 
 let currentDate = new Date();
 let reservations: Reservation[] = [];
@@ -20,6 +24,12 @@ let realtimeChannel: RealtimeChannel | null = null;
 let loadError = false;
 let loadingDay = false;
 let lastFocusedBeforeModal: HTMLElement | null = null;
+/** Evita que respuestas viejas de loadDay pisen datos nuevos. */
+let loadSeq = 0;
+let pollTimer: number | null = null;
+let reconnectTimer: number | null = null;
+let watchersReady = false;
+let realtimeOk = false;
 
 function showScreen(id: string): void {
   document.querySelectorAll('.screen').forEach((el) => el.classList.add('hidden'));
@@ -38,27 +48,53 @@ function reservationAtHour(hour: number): Reservation | null {
   return reservations.find((r) => reservationCoversHour(r, hour)) ?? null;
 }
 
+function setRealtimeBadge(connected: boolean): void {
+  realtimeOk = connected;
+  const el = $('realtime-status');
+  if (!el) return;
+  el.textContent = connected ? 'En vivo' : 'Reconectando…';
+  el.classList.toggle('is-live', connected);
+  el.classList.toggle('is-offline', !connected);
+  el.classList.remove('hidden');
+}
+
 async function loadDay(): Promise<void> {
   if (!supabase) return;
+  const seq = ++loadSeq;
   const key = formatDateKeyLocal(currentDate);
   loadingDay = true;
   loadError = false;
   setStatus('Cargando horario…');
-  const { data, error } = await supabase
-    .from('reservations')
-    .select('*')
-    .eq('fecha', key)
-    .order('hora');
-  loadingDay = false;
-  if (error) {
+
+  try {
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('fecha', key)
+      .order('hora');
+
+    // Respuesta obsoleta (hubo otra carga más reciente).
+    if (seq !== loadSeq) return;
+
+    if (error) {
+      reservations = [];
+      loadError = true;
+      setStatus(`No se pudo cargar el horario: ${error.message}`, true);
+    } else {
+      reservations = normalizeReservationList(data);
+      setStatus('');
+    }
+    renderTable();
+  } catch (err) {
+    if (seq !== loadSeq) return;
     reservations = [];
     loadError = true;
-    setStatus(`No se pudo cargar el horario: ${error.message}`, true);
-  } else {
-    reservations = (data as Reservation[]) || [];
-    setStatus('');
+    const msg = err instanceof Error ? err.message : 'Error inesperado al cargar.';
+    setStatus(`No se pudo cargar el horario: ${msg}`, true);
+    renderTable();
+  } finally {
+    if (seq === loadSeq) loadingDay = false;
   }
-  renderTable();
 }
 
 function openModal(modalId: string): void {
@@ -329,7 +365,7 @@ async function fetchReservationsForDate(fecha: string): Promise<Reservation[]> {
     .eq('fecha', fecha)
     .order('hora');
   if (error) throw new Error(error.message);
-  return (data as Reservation[]) || [];
+  return normalizeReservationList(data);
 }
 
 async function submitReservation(e: Event): Promise<void> {
@@ -425,22 +461,92 @@ async function submitReservation(e: Event): Promise<void> {
   }
 }
 
-function subscribeRealtime(): void {
-  if (!supabase || realtimeChannel) return;
-  realtimeChannel = supabase
-    .channel('reservations-changes')
+function scheduleRealtimeReconnect(delayMs = 2500): void {
+  if (reconnectTimer != null) window.clearTimeout(reconnectTimer);
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null;
+    if (document.visibilityState === 'visible') {
+      subscribeRealtime(true);
+    }
+  }, delayMs);
+}
+
+function subscribeRealtime(force = false): void {
+  if (!supabase) return;
+  if (realtimeChannel && !force) return;
+
+  if (realtimeChannel) {
+    void supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+
+  setRealtimeBadge(false);
+
+  const channel = supabase
+    .channel(`reservations-changes-${Date.now()}`)
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'reservations' },
       (payload) => {
-        const row = (payload.new || payload.old) as { fecha?: string } | null;
-        const viewed = formatDateKeyLocal(currentDate);
-        if (!row?.fecha || row.fecha === viewed) {
+        try {
+          const fecha =
+            extractFechaFromRealtimeRow(payload.new) ||
+            extractFechaFromRealtimeRow(payload.old);
+          const viewed = formatDateKeyLocal(currentDate);
+          // Sin fecha usable → refrescar por seguridad (tablet).
+          if (!fecha || fecha === viewed) {
+            void loadDay();
+          }
+        } catch {
           void loadDay();
         }
       },
-    )
-    .subscribe();
+    );
+
+  realtimeChannel = channel;
+  channel.subscribe((status: string, err?: Error) => {
+    if (status === 'SUBSCRIBED') {
+      setRealtimeBadge(true);
+      return;
+    }
+
+    if (
+      status === 'CHANNEL_ERROR' ||
+      status === 'TIMED_OUT' ||
+      status === 'CLOSED'
+    ) {
+      setRealtimeBadge(false);
+      if (err) {
+        console.warn('[realtime]', status, err.message);
+      }
+      scheduleRealtimeReconnect(status === 'TIMED_OUT' ? 4000 : 2500);
+    }
+  });
+}
+
+function startScheduleWatchers(): void {
+  if (watchersReady) return;
+  watchersReady = true;
+
+  // Respaldo para tablet: si realtime falla, el horario igual se actualiza.
+  pollTimer = window.setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      void loadDay();
+      if (!realtimeOk) subscribeRealtime(true);
+    }
+  }, 15000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      void loadDay();
+      subscribeRealtime(true);
+    }
+  });
+
+  window.addEventListener('online', () => {
+    void loadDay();
+    subscribeRealtime(true);
+  });
 }
 
 function enterApp(): void {
@@ -448,7 +554,8 @@ function enterApp(): void {
   const label = $('date-label');
   if (label) label.textContent = formatDateLabel(currentDate);
   setupDateNav();
-  subscribeRealtime();
+  subscribeRealtime(true);
+  startScheduleWatchers();
   void loadDay();
 }
 
@@ -485,6 +592,16 @@ function initAuth(): void {
       void client.removeChannel(realtimeChannel);
       realtimeChannel = null;
     }
+    if (pollTimer != null) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+    if (reconnectTimer != null) {
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    watchersReady = false;
+    realtimeOk = false;
   });
 }
 

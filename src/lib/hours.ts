@@ -31,7 +31,6 @@ export function reservationCoversHour(r: Reservation, hour: number): boolean {
 
 export function formatHoraDisplay(r: Reservation): string {
   if (!r.hora) return '—';
-  return r.hora_fin && r.hora_fin.trim() !== '' && r.hora_fin !== r.hora
-    ? `${r.hora} - ${r.hora_fin}`
-    : r.hora;
+  const fin = r.hora_fin == null ? '' : String(r.hora_fin).trim();
+  return fin !== '' && fin !== r.hora ? `${r.hora} - ${fin}` : r.hora;
 }

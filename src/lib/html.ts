@@ -2,8 +2,8 @@ export function $(id: string): HTMLElement | null {
   return document.getElementById(id);
 }
 
-export function escapeHtml(s: string): string {
+export function escapeHtml(s: string | null | undefined): string {
   const div = document.createElement('div');
-  div.textContent = s;
+  div.textContent = s ?? '';
   return div.innerHTML;
 }

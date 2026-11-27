@@ -63,3 +63,5 @@ supabase/rls.sql      # Políticas recomendadas
 | `reservado_por` | Email del usuario autenticado (dueño) |
 
 Si la tabla aún no tiene `colaboradores`, ejecuta `supabase/add_colaboradores.sql`.
+
+Para la tablet (sincronización en vivo), ejecuta también `supabase/realtime.sql` para publicar `reservations` en Realtime.
