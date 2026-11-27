@@ -767,12 +767,42 @@ function startScheduleWatchers(): void {
   });
 }
 
+async function playPoloWelcome(withSound: boolean): Promise<void> {
+  const video = $('polo-video') as HTMLVideoElement | null;
+  if (!video) return;
+  try {
+    video.loop = true;
+    video.muted = !withSound;
+    if (withSound) video.currentTime = 0;
+    await video.play();
+  } catch {
+    try {
+      video.muted = true;
+      await video.play();
+    } catch {
+      // El usuario puede tocar el video para iniciar.
+    }
+  }
+}
+
+function setupPoloVideo(): void {
+  const video = $('polo-video') as HTMLVideoElement | null;
+  if (!video || video.dataset.bound === '1') return;
+  video.dataset.bound = '1';
+  video.addEventListener('click', () => {
+    void playPoloWelcome(true);
+  });
+}
+
 function enterApp(): void {
   appScreenActive = true;
   showScreen('app-screen');
   const label = $('date-label');
   if (label) label.textContent = formatDateLabel(currentDate);
   setupDateNav();
+  setupPoloVideo();
+  // Tras login hay gesto de usuario: intentar audio; si el navegador bloquea, queda en silencio.
+  void playPoloWelcome(true);
   startScheduleWatchers();
   void (async () => {
     await bindRealtimeAuth();

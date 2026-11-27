@@ -629,38 +629,39 @@ textarea:focus-visible {
 }
 
 .app-polo-wrap {
+  --polo-bg: #bacbdc; /* mismo tono del fondo del video */
   position: relative;
   display: flex;
   justify-content: center;
+  align-items: flex-end;
   width: 100%;
-  max-width: 220px;
+  max-width: 100%;
+  min-height: 240px;
   margin: 0.85rem auto 0.35rem;
-}
-
-.app-polo-wrap::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: 4%;
-  width: 70%;
-  height: 28%;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(20, 50, 90, 0.14), transparent 70%);
-  pointer-events: none;
+  padding: 0;
+  border-radius: 16px;
+  background: var(--polo-bg);
+  overflow: hidden;
 }
 
 .app-polo {
   position: relative;
   z-index: 1;
-  width: auto;
+  display: block;
+  width: 100%;
   height: auto;
   max-width: 100%;
-  max-height: 220px;
+  max-height: 360px;
+  min-height: 220px;
   object-fit: contain;
-  object-position: bottom center;
-  animation: polo-wave 2.8s ease-in-out infinite;
-  transform-origin: 50% 100%;
+  object-position: center bottom;
+  background: var(--polo-bg);
+  border: none;
+  opacity: 1;
+  visibility: visible;
+  mix-blend-mode: normal;
+  filter: none;
+  cursor: pointer;
 }
 
 .app-eslogan {
@@ -674,24 +675,6 @@ textarea:focus-visible {
   mix-blend-mode: multiply;
 }
 
-@keyframes polo-wave {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  35% {
-    transform: translateY(-6px) rotate(-1.5deg);
-  }
-  70% {
-    transform: translateY(-2px) rotate(1.5deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-polo {
-    animation: none;
-  }
-}
 
 @media (max-width: 640px) {
   .app-eslogan {
@@ -1039,7 +1022,8 @@ textarea:focus-visible {
   }
 
   .app-polo {
-    max-height: 160px;
+    max-height: 240px;
+    min-height: 180px;
   }
 }
 
@@ -1047,7 +1031,7 @@ textarea:focus-visible {
 @media (orientation: landscape) and (max-height: 980px) {
   .app-main {
     display: grid;
-    grid-template-columns: minmax(180px, 30%) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 34%) minmax(0, 1fr);
     gap: 0.85rem 1.25rem;
     align-items: stretch;
     max-width: none;
@@ -1062,35 +1046,51 @@ textarea:focus-visible {
 
   .app-brand-rail {
     margin: 0;
-    padding: 0.5rem 0.35rem;
-    justify-content: center;
-    gap: 0.35rem;
+    padding: 0.55rem 0.5rem 0.65rem;
+    justify-content: flex-start;
+    gap: 0.4rem;
     min-height: 0;
     height: 100%;
     border-right: 1px solid var(--line);
+    background: #bacbdc;
+    border-radius: 14px;
   }
 
   .app-brand-rail .title-main {
     font-size: clamp(1.05rem, 2.4vw, 1.45rem);
     text-align: center;
     line-height: 1.15;
+    flex: 0 0 auto;
   }
 
   .app-polo-wrap {
-    max-width: min(100%, 210px);
-    margin: 0.35rem auto;
+    max-width: none;
+    width: 100%;
+    margin: 0;
     flex: 1 1 auto;
     align-items: flex-end;
+    justify-content: center;
     min-height: 0;
+    height: 100%;
+    border-radius: 12px;
+    background: #bacbdc;
+    overflow: hidden;
   }
 
   .app-polo {
-    max-height: min(52vh, 280px);
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    min-height: 0;
+    object-fit: contain;
+    object-position: center bottom;
+    background: #bacbdc;
   }
 
   .app-eslogan {
-    width: min(100%, 220px);
-    margin: 0.2rem auto 0;
+    width: min(100%, 240px);
+    margin: 0.15rem auto 0;
+    flex: 0 0 auto;
   }
 
   .app-schedule-rail {
@@ -1162,10 +1162,6 @@ textarea:focus-visible {
 @media (orientation: landscape) and (max-height: 700px) {
   .app-brand-rail .title-main {
     font-size: 1rem;
-  }
-
-  .app-polo {
-    max-height: min(42vh, 180px);
   }
 
   .app-eslogan {
