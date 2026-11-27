@@ -65,3 +65,5 @@ supabase/rls.sql      # Políticas recomendadas
 Si la tabla aún no tiene `colaboradores`, ejecuta `supabase/add_colaboradores.sql`.
 
 Para la tablet (sincronización en vivo), ejecuta también `supabase/realtime.sql` para publicar `reservations` en Realtime.
+
+Para evitar reservas duplicadas al guardar al mismo tiempo, ejecuta `supabase/create_reservation_safe.sql` (función atómica: el primero que guarda gana).

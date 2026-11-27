@@ -5,7 +5,9 @@ import { dateFromKey, formatDateKeyLocal, formatDateLabel } from './lib/date';
 import { $, escapeHtml } from './lib/html';
 import {
   formatHoraDisplay,
+  freeHoursList,
   hourToLabel,
+  maxContiguousEndHour,
   parseHourFromHora,
   rangesOverlap,
   reservationCoversHour,
@@ -19,6 +21,8 @@ import {
 
 let currentDate = new Date();
 let reservations: Reservation[] = [];
+/** Snapshot fresco del día del formulario (para ocultar horas ocupadas). */
+let formDayReservations: Reservation[] = [];
 let currentUserEmail: string | null = null;
 let realtimeChannel: RealtimeChannel | null = null;
 let loadError = false;
@@ -30,6 +34,7 @@ let pollTimer: number | null = null;
 let reconnectTimer: number | null = null;
 let watchersReady = false;
 let realtimeOk = false;
+let formAvailabilityBound = false;
 
 function showScreen(id: string): void {
   document.querySelectorAll('.screen').forEach((el) => el.classList.add('hidden'));
@@ -83,6 +88,8 @@ async function loadDay(): Promise<void> {
     } else {
       reservations = normalizeReservationList(data);
       setStatus('');
+      // Si el formulario está abierto el mismo día, quitar horas recién ocupadas.
+      syncOpenFormAvailability(key);
     }
     renderTable();
   } catch (err) {
@@ -95,6 +102,17 @@ async function loadDay(): Promise<void> {
   } finally {
     if (seq === loadSeq) loadingDay = false;
   }
+}
+
+function syncOpenFormAvailability(viewedFecha: string): void {
+  const modal = $('modal-form');
+  if (!modal || modal.classList.contains('hidden')) return;
+  const fecha = ($('form-fecha') as HTMLInputElement | null)?.value;
+  if (!fecha || fecha !== viewedFecha) return;
+  formDayReservations = reservations;
+  const selInicio = $('form-hora-inicio') as HTMLSelectElement | null;
+  const preferred = selInicio ? parseInt(selInicio.value, 10) : undefined;
+  refreshFormHourSelects(Number.isFinite(preferred) ? preferred : undefined);
 }
 
 function openModal(modalId: string): void {
@@ -323,26 +341,84 @@ function setupDateNav(): void {
   }
 }
 
-function fillHourSelect(selectId: string, startHour: number, endHour: number): void {
+function fillHourSelectFromList(
+  selectId: string,
+  hours: number[],
+  preferred?: number,
+): void {
   const select = $(selectId) as HTMLSelectElement | null;
   if (!select) return;
   select.innerHTML = '';
-  for (let h = startHour; h <= endHour; h++) {
+  if (hours.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Sin horas libres';
+    select.appendChild(opt);
+    select.disabled = true;
+    return;
+  }
+  select.disabled = false;
+  for (const h of hours) {
     const opt = document.createElement('option');
     opt.value = String(h);
     opt.textContent = hourToLabel(h);
     select.appendChild(opt);
   }
+  if (preferred != null && hours.includes(preferred)) {
+    select.value = String(preferred);
+  } else {
+    select.value = String(hours[0]);
+  }
 }
 
-function setupNewReservation(): void {
+function refreshFormHourSelects(preferredStart?: number): void {
+  const freeStarts = freeHoursList(formDayReservations, HOUR_START, HOUR_END);
+  fillHourSelectFromList('form-hora-inicio', freeStarts, preferredStart);
+
+  const selInicio = $('form-hora-inicio') as HTMLSelectElement | null;
+  const selFin = $('form-hora-fin') as HTMLSelectElement | null;
+  const submitBtn = document.querySelector(
+    '#reservation-form button[type="submit"]',
+  ) as HTMLButtonElement | null;
+  const formError = $('form-error');
+
+  if (!selInicio || !selFin) return;
+
+  if (freeStarts.length === 0) {
+    fillHourSelectFromList('form-hora-fin', []);
+    if (submitBtn) submitBtn.disabled = true;
+    if (formError) {
+      formError.textContent = 'No hay horas disponibles para esta fecha.';
+    }
+    return;
+  }
+
+  const inicio = parseInt(selInicio.value, 10);
+  const maxFin = maxContiguousEndHour(inicio, formDayReservations, HOUR_END);
+  const finHours: number[] = [];
+  for (let h = inicio; h <= maxFin; h++) finHours.push(h);
+  const prevFin = parseInt(selFin.value, 10);
+  fillHourSelectFromList(
+    'form-hora-fin',
+    finHours,
+    Number.isFinite(prevFin) ? prevFin : inicio,
+  );
+  if (submitBtn) submitBtn.disabled = false;
+}
+
+async function refreshFormAvailability(fecha: string): Promise<void> {
+  formDayReservations = await fetchReservationsForDate(fecha, { force: true });
+  const selInicio = $('form-hora-inicio') as HTMLSelectElement | null;
+  const preferred = selInicio ? parseInt(selInicio.value, 10) : undefined;
+  refreshFormHourSelects(Number.isFinite(preferred) ? preferred : undefined);
+}
+
+async function setupNewReservation(): Promise<void> {
   const selInicio = $('form-hora-inicio') as HTMLSelectElement | null;
   if (!selInicio) return;
-  fillHourSelect('form-hora-inicio', HOUR_START, HOUR_END);
-  const inicioVal = selInicio.value;
-  fillHourSelect('form-hora-fin', parseInt(inicioVal, 10), HOUR_END);
-  ($('form-hora-fin') as HTMLSelectElement).value = inicioVal;
-  ($('form-fecha') as HTMLInputElement).value = formatDateKeyLocal(currentDate);
+
+  const fechaInput = $('form-fecha') as HTMLInputElement;
+  fechaInput.value = formatDateKeyLocal(currentDate);
   ($('form-organizador') as HTMLInputElement).value = currentUserEmail || '';
   ($('form-organizador') as HTMLInputElement).placeholder =
     'Correo (predeterminado: inicio de sesión)';
@@ -351,12 +427,35 @@ function setupNewReservation(): void {
   ($('form-invitados') as HTMLTextAreaElement).value = '';
   const err = $('form-error');
   if (err) err.textContent = '';
+
+  try {
+    await refreshFormAvailability(fechaInput.value);
+  } catch (e) {
+    if (err) {
+      err.textContent =
+        e instanceof Error
+          ? `No se pudo cargar disponibilidad: ${e.message}`
+          : 'No se pudo cargar disponibilidad.';
+    }
+    // Fallback: no ofrecer horas hasta poder validar.
+    formDayReservations = [];
+    fillHourSelectFromList('form-hora-inicio', []);
+    fillHourSelectFromList('form-hora-fin', []);
+  }
 }
 
-async function fetchReservationsForDate(fecha: string): Promise<Reservation[]> {
+async function fetchReservationsForDate(
+  fecha: string,
+  opts?: { force?: boolean },
+): Promise<Reservation[]> {
   if (!supabase) return [];
-  // Si ya estamos viendo ese día y no hubo error, reutilizar cache.
-  if (fecha === formatDateKeyLocal(currentDate) && !loadError && !loadingDay) {
+  // Solo cache si no forzamos (el guardado siempre fuerza).
+  if (
+    !opts?.force &&
+    fecha === formatDateKeyLocal(currentDate) &&
+    !loadError &&
+    !loadingDay
+  ) {
     return reservations;
   }
   const { data, error } = await supabase
@@ -366,6 +465,46 @@ async function fetchReservationsForDate(fecha: string): Promise<Reservation[]> {
     .order('hora');
   if (error) throw new Error(error.message);
   return normalizeReservationList(data);
+}
+
+function overlapMessage(startStr: string, endStr: string, useRange: boolean): string {
+  return `Ese horario ya fue reservado (de ${startStr}${
+    useRange ? ` a ${endStr}` : ''
+  }). Tiene prioridad quien guardó primero; elige otro horario.`;
+}
+
+async function insertReservationSafe(payload: ReservationInsert): Promise<{ errorMessage?: string }> {
+  if (!supabase) return { errorMessage: 'Supabase no configurado.' };
+
+  // Camino preferido: RPC atómica (lock por fecha en el servidor).
+  const { error: rpcError } = await supabase.rpc('create_reservation_safe', {
+    p_fecha: payload.fecha,
+    p_hora: payload.hora,
+    p_hora_fin: payload.hora_fin ?? '',
+    p_responsable: payload.responsable,
+    p_asunto: payload.asunto,
+    p_colaboradores: payload.colaboradores,
+    p_participantes: payload.participantes,
+    p_reservado_por: payload.reservado_por,
+  });
+
+  if (!rpcError) return {};
+
+  // Si la función aún no existe, fallback a insert + chequeo fresco.
+  const missingFn =
+    /could not find the function|function .* does not exist|PGRST202/i.test(
+      rpcError.message,
+    );
+  if (!missingFn) {
+    if (/HORARIO_OCUPADO/i.test(rpcError.message)) {
+      return { errorMessage: 'HORARIO_OCUPADO' };
+    }
+    return { errorMessage: rpcError.message };
+  }
+
+  const { error } = await supabase.from('reservations').insert(payload);
+  if (!error) return {};
+  return { errorMessage: error.message };
 }
 
 async function submitReservation(e: Event): Promise<void> {
@@ -392,6 +531,10 @@ async function submitReservation(e: Event): Promise<void> {
     if (formError) formError.textContent = 'Indica los colaboradores de la reunión.';
     return;
   }
+  if (!Number.isFinite(horaInicio) || !Number.isFinite(horaFin)) {
+    if (formError) formError.textContent = 'No hay horas disponibles para reservar.';
+    return;
+  }
 
   const startStr = hourToLabel(horaInicio);
   const endStr = hourToLabel(horaFin);
@@ -406,18 +549,29 @@ async function submitReservation(e: Event): Promise<void> {
   if (formError) formError.textContent = '';
 
   try {
-    const dayReservations = await fetchReservationsForDate(fecha);
+    // Siempre fresco desde DB (nunca cache) para reducir duplicados.
+    const dayReservations = await fetchReservationsForDate(fecha, { force: true });
+    formDayReservations = dayReservations;
+
     const overlapping = dayReservations.filter((r) => {
       const range = reservationHourRange(r);
       if (!range) return false;
       return rangesOverlap(newStart, newEnd, range.start, range.end);
     });
     if (overlapping.length > 0) {
+      if (formError) formError.textContent = overlapMessage(startStr, endStr, useRange);
+      refreshFormHourSelects();
+      return;
+    }
+
+    // Validar que el rango elegido no atraviese huecos ocupados.
+    const maxFin = maxContiguousEndHour(horaInicio, dayReservations, HOUR_END);
+    if (horaFin > maxFin) {
       if (formError) {
-        formError.textContent = `Ya hay una reserva que coincide con ese horario (de ${startStr}${
-          useRange ? ` a ${endStr}` : ''
-        }).`;
+        formError.textContent =
+          'Ese rango cruza horas ya reservadas. Ajusta hora de fin.';
       }
+      refreshFormHourSelects(horaInicio);
       return;
     }
 
@@ -434,14 +588,18 @@ async function submitReservation(e: Event): Promise<void> {
     };
     if (useRange) payload.hora_fin = endStr;
 
-    const { error } = await supabase.from('reservations').insert(payload);
-    if (error) {
-      if (formError) formError.textContent = error.message;
+    const { errorMessage } = await insertReservationSafe(payload);
+    if (errorMessage) {
+      if (errorMessage === 'HORARIO_OCUPADO' || /HORARIO_OCUPADO/i.test(errorMessage)) {
+        if (formError) formError.textContent = overlapMessage(startStr, endStr, useRange);
+        await refreshFormAvailability(fecha);
+        return;
+      }
+      if (formError) formError.textContent = errorMessage;
       return;
     }
 
     closeModal('modal-form');
-    // Si se guardó en otro día, navegar a esa fecha.
     if (fecha !== formatDateKeyLocal(currentDate)) {
       currentDate = dateFromKey(fecha);
       const label = $('date-label');
@@ -455,7 +613,8 @@ async function submitReservation(e: Event): Promise<void> {
     }
   } finally {
     if (submitBtn) {
-      submitBtn.disabled = false;
+      const free = freeHoursList(formDayReservations, HOUR_START, HOUR_END);
+      submitBtn.disabled = free.length === 0;
       submitBtn.textContent = 'Guardar reservación';
     }
   }
@@ -647,22 +806,39 @@ function initApp(): void {
   }
 
   $('btn-new-reservation')!.onclick = () => {
-    setupNewReservation();
     openModal('modal-form');
+    void setupNewReservation();
   };
 
   $('btn-cancel-form')!.onclick = () => closeModal('modal-form');
   $('btn-close-detail')!.onclick = () => closeModal('modal-detail');
   $('btn-mailto-form')!.onclick = openMailtoFromForm;
 
-  const formHoraInicio = $('form-hora-inicio') as HTMLSelectElement | null;
-  formHoraInicio?.addEventListener('change', () => {
-    const inicio = parseInt(($('form-hora-inicio') as HTMLSelectElement).value, 10);
-    fillHourSelect('form-hora-fin', inicio, HOUR_END);
-    const finSelect = $('form-hora-fin') as HTMLSelectElement;
-    const finVal = parseInt(finSelect.value, 10);
-    if (Number.isNaN(finVal) || finVal < inicio) finSelect.value = String(inicio);
-  });
+  if (!formAvailabilityBound) {
+    formAvailabilityBound = true;
+
+    const formHoraInicio = $('form-hora-inicio') as HTMLSelectElement | null;
+    formHoraInicio?.addEventListener('change', () => {
+      const inicio = parseInt(($('form-hora-inicio') as HTMLSelectElement).value, 10);
+      if (!Number.isFinite(inicio)) return;
+      refreshFormHourSelects(inicio);
+    });
+
+    const formFecha = $('form-fecha') as HTMLInputElement | null;
+    formFecha?.addEventListener('change', () => {
+      const fecha = ($('form-fecha') as HTMLInputElement).value;
+      if (!fecha) return;
+      void refreshFormAvailability(fecha).catch((err) => {
+        const formError = $('form-error');
+        if (formError) {
+          formError.textContent =
+            err instanceof Error
+              ? `No se pudo cargar disponibilidad: ${err.message}`
+              : 'No se pudo cargar disponibilidad.';
+        }
+      });
+    });
+  }
 
   ($('reservation-form') as HTMLFormElement).addEventListener('submit', (e) => {
     void submitReservation(e);
