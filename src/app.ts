@@ -160,18 +160,27 @@ function renderReservationsList(): void {
     li.className = 'reservation-item clickable';
     li.tabIndex = 0;
     li.setAttribute('role', 'button');
-    li.setAttribute(
-      'aria-label',
-      `Reservación ${formatHoraDisplay(r)}: ${r.asunto}. Abrir detalle.`,
-    );
+    const horario = formatHoraDisplay(r);
+    const asunto = r.asunto?.trim() || '—';
     const colaboradoresLabel =
       (r.colaboradores && r.colaboradores.trim()) || 'Sin colaboradores';
+    li.setAttribute(
+      'aria-label',
+      `Horario ${horario}. Asunto ${asunto}. Colaboradores ${colaboradoresLabel}. Abrir detalle.`,
+    );
     li.innerHTML =
-      `<span class="reservation-time">${escapeHtml(formatHoraDisplay(r))}</span>` +
-      `<span class="reservation-meta">` +
-      `<strong>${escapeHtml(r.asunto)}</strong>` +
-      `<span class="reservation-org">${escapeHtml(colaboradoresLabel)}</span>` +
-      `</span>`;
+      `<div class="reservation-col reservation-col-time">` +
+      `<span class="reservation-label">Horario</span>` +
+      `<span class="reservation-value">${escapeHtml(horario)}</span>` +
+      `</div>` +
+      `<div class="reservation-col reservation-col-asunto">` +
+      `<span class="reservation-label">Asunto</span>` +
+      `<span class="reservation-value">${escapeHtml(asunto)}</span>` +
+      `</div>` +
+      `<div class="reservation-col reservation-col-collab">` +
+      `<span class="reservation-label">Colaboradores</span>` +
+      `<span class="reservation-value">${escapeHtml(colaboradoresLabel)}</span>` +
+      `</div>`;
     const open = () => openDetail(r);
     li.addEventListener('click', open);
     li.addEventListener('keydown', (e) => {

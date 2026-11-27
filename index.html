@@ -94,7 +94,14 @@
       </div>
 
       <h3 class="section-title">RESERVACIONES DEL DÍA</h3>
-      <ul id="reservations-list" class="reservations-list" aria-live="polite"></ul>
+      <div class="reservations-panel">
+        <div class="reservations-head" aria-hidden="true">
+          <span>Horario</span>
+          <span>Asunto</span>
+          <span>Colaboradores</span>
+        </div>
+        <ul id="reservations-list" class="reservations-list" aria-live="polite"></ul>
+      </div>
 
       <h3 class="section-title">HORAS DISPONIBLES</h3>
       <p id="schedule-status" class="schedule-status hidden" role="status" aria-live="polite"></p>
