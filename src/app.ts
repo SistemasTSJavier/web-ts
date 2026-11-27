@@ -1,5 +1,5 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { supabase, supabaseConfigured } from './supabaseClient';
+import { bindRealtimeAuth, supabase, supabaseConfigured } from './supabaseClient';
 import { HOUR_END, HOUR_START, type Reservation, type ReservationInsert } from './types';
 import { dateFromKey, formatDateKeyLocal, formatDateLabel } from './lib/date';
 import { $, escapeHtml } from './lib/html';
@@ -32,9 +32,13 @@ let lastFocusedBeforeModal: HTMLElement | null = null;
 let loadSeq = 0;
 let pollTimer: number | null = null;
 let reconnectTimer: number | null = null;
+let realtimeDebounceTimer: number | null = null;
 let watchersReady = false;
 let realtimeOk = false;
 let formAvailabilityBound = false;
+let appScreenActive = false;
+const REALTIME_CHANNEL = 'sala-juntas-sync';
+const POLL_MS = 5000;
 
 function showScreen(id: string): void {
   document.querySelectorAll('.screen').forEach((el) => el.classList.add('hidden'));
@@ -63,13 +67,14 @@ function setRealtimeBadge(connected: boolean): void {
   el.classList.remove('hidden');
 }
 
-async function loadDay(): Promise<void> {
+async function loadDay(opts?: { silent?: boolean }): Promise<void> {
   if (!supabase) return;
   const seq = ++loadSeq;
   const key = formatDateKeyLocal(currentDate);
+  const silent = Boolean(opts?.silent);
   loadingDay = true;
   loadError = false;
-  setStatus('Cargando horario…');
+  if (!silent) setStatus('Cargando horario…');
 
   try {
     const { data, error } = await supabase
@@ -87,7 +92,11 @@ async function loadDay(): Promise<void> {
       setStatus(`No se pudo cargar el horario: ${error.message}`, true);
     } else {
       reservations = normalizeReservationList(data);
-      setStatus('');
+      if (!silent) setStatus('');
+      else if (!loadError) {
+        const statusEl = $('schedule-status');
+        if (statusEl?.classList.contains('is-error')) setStatus('');
+      }
       // Si el formulario está abierto el mismo día, quitar horas recién ocupadas.
       syncOpenFormAvailability(key);
     }
@@ -101,6 +110,34 @@ async function loadDay(): Promise<void> {
     renderTable();
   } finally {
     if (seq === loadSeq) loadingDay = false;
+  }
+}
+
+/** Agrupa eventos realtime/broadcast para no saturar. */
+function requestScheduleRefresh(reason = 'sync'): void {
+  if (!appScreenActive) return;
+  if (realtimeDebounceTimer != null) window.clearTimeout(realtimeDebounceTimer);
+  realtimeDebounceTimer = window.setTimeout(() => {
+    realtimeDebounceTimer = null;
+    void loadDay({ silent: true });
+    if (reason) {
+      // noop: reason útil para depurar en consola
+      console.debug('[schedule-refresh]', reason);
+    }
+  }, 250);
+}
+
+async function notifyPeersReservationChanged(fecha: string): Promise<void> {
+  if (!supabase) return;
+  try {
+    const channel = realtimeChannel ?? supabase.channel(REALTIME_CHANNEL);
+    await channel.send({
+      type: 'broadcast',
+      event: 'reservations_changed',
+      payload: { fecha, at: Date.now() },
+    });
+  } catch (err) {
+    console.warn('[broadcast]', err);
   }
 }
 
@@ -323,7 +360,8 @@ async function deleteReservation(id: string): Promise<void> {
     return;
   }
   closeModal('modal-detail');
-  await loadDay();
+  await notifyPeersReservationChanged(formatDateKeyLocal(currentDate));
+  await loadDay({ silent: true });
 }
 
 function setupDateNav(): void {
@@ -614,7 +652,8 @@ async function submitReservation(e: Event): Promise<void> {
       const label = $('date-label');
       if (label) label.textContent = formatDateLabel(currentDate);
     }
-    await loadDay();
+    await notifyPeersReservationChanged(fecha);
+    await loadDay({ silent: true });
   } catch (err) {
     if (formError) {
       formError.textContent =
@@ -633,15 +672,17 @@ function scheduleRealtimeReconnect(delayMs = 2500): void {
   if (reconnectTimer != null) window.clearTimeout(reconnectTimer);
   reconnectTimer = window.setTimeout(() => {
     reconnectTimer = null;
-    if (document.visibilityState === 'visible') {
-      subscribeRealtime(true);
+    if (appScreenActive && document.visibilityState === 'visible') {
+      void subscribeRealtime(true);
     }
   }, delayMs);
 }
 
-function subscribeRealtime(force = false): void {
-  if (!supabase) return;
-  if (realtimeChannel && !force) return;
+async function subscribeRealtime(force = false): Promise<void> {
+  if (!supabase || !appScreenActive) return;
+  if (realtimeChannel && !force && realtimeOk) return;
+
+  await bindRealtimeAuth();
 
   if (realtimeChannel) {
     void supabase.removeChannel(realtimeChannel);
@@ -651,30 +692,39 @@ function subscribeRealtime(force = false): void {
   setRealtimeBadge(false);
 
   const channel = supabase
-    .channel(`reservations-changes-${Date.now()}`)
+    .channel(REALTIME_CHANNEL, {
+      config: {
+        broadcast: { self: true },
+      },
+    })
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'reservations' },
       (payload) => {
-        try {
-          const fecha =
-            extractFechaFromRealtimeRow(payload.new) ||
-            extractFechaFromRealtimeRow(payload.old);
-          const viewed = formatDateKeyLocal(currentDate);
-          // Sin fecha usable → refrescar por seguridad (tablet).
-          if (!fecha || fecha === viewed) {
-            void loadDay();
-          }
-        } catch {
-          void loadDay();
-        }
+        // Cualquier cambio → refrescar (tablet no depende del filtro de fecha).
+        const fecha =
+          extractFechaFromRealtimeRow(payload.new) ||
+          extractFechaFromRealtimeRow(payload.old);
+        requestScheduleRefresh(`postgres:${payload.eventType}:${fecha || 'all'}`);
       },
-    );
+    )
+    .on('broadcast', { event: 'reservations_changed' }, (msg) => {
+      const fecha = extractFechaFromRealtimeRow(msg?.payload) || '';
+      const viewed = formatDateKeyLocal(currentDate);
+      if (!fecha || fecha === viewed) {
+        requestScheduleRefresh('broadcast');
+      } else {
+        // Otro día: igual refrescar por seguridad en tablet fija.
+        requestScheduleRefresh('broadcast-other-day');
+      }
+    });
 
   realtimeChannel = channel;
   channel.subscribe((status: string, err?: Error) => {
     if (status === 'SUBSCRIBED') {
       setRealtimeBadge(true);
+      // Al conectar, traer estado actual por si se perdió un evento.
+      requestScheduleRefresh('subscribed');
       return;
     }
 
@@ -684,10 +734,9 @@ function subscribeRealtime(force = false): void {
       status === 'CLOSED'
     ) {
       setRealtimeBadge(false);
-      if (err) {
-        console.warn('[realtime]', status, err.message);
-      }
-      scheduleRealtimeReconnect(status === 'TIMED_OUT' ? 4000 : 2500);
+      if (err) console.warn('[realtime]', status, err.message);
+      else console.warn('[realtime]', status);
+      scheduleRealtimeReconnect(status === 'TIMED_OUT' ? 4000 : 2000);
     }
   });
 }
@@ -696,35 +745,46 @@ function startScheduleWatchers(): void {
   if (watchersReady) return;
   watchersReady = true;
 
-  // Respaldo para tablet: si realtime falla, el horario igual se actualiza.
+  // Respaldo fuerte para tablet: refresco silencioso cada 5s.
   pollTimer = window.setInterval(() => {
-    if (document.visibilityState === 'visible') {
-      void loadDay();
-      if (!realtimeOk) subscribeRealtime(true);
-    }
-  }, 15000);
+    if (!appScreenActive) return;
+    // En tablet a veces visibilityState falla; siempre intentamos.
+    void loadDay({ silent: true });
+    if (!realtimeOk) void subscribeRealtime(true);
+  }, POLL_MS);
 
   document.addEventListener('visibilitychange', () => {
+    if (!appScreenActive) return;
     if (document.visibilityState === 'visible') {
-      void loadDay();
-      subscribeRealtime(true);
+      void subscribeRealtime(true);
+      requestScheduleRefresh('visible');
     }
   });
 
   window.addEventListener('online', () => {
-    void loadDay();
-    subscribeRealtime(true);
+    if (!appScreenActive) return;
+    void subscribeRealtime(true);
+    requestScheduleRefresh('online');
+  });
+
+  window.addEventListener('focus', () => {
+    if (!appScreenActive) return;
+    requestScheduleRefresh('focus');
   });
 }
 
 function enterApp(): void {
+  appScreenActive = true;
   showScreen('app-screen');
   const label = $('date-label');
   if (label) label.textContent = formatDateLabel(currentDate);
   setupDateNav();
-  subscribeRealtime(true);
   startScheduleWatchers();
-  void loadDay();
+  void (async () => {
+    await bindRealtimeAuth();
+    await subscribeRealtime(true);
+    await loadDay();
+  })();
 }
 
 function initAuth(): void {
@@ -744,17 +804,24 @@ function initAuth(): void {
   client.auth.onAuthStateChange((event, session) => {
     currentUserEmail = session?.user?.email ?? null;
 
+    if (session?.access_token) {
+      void client.realtime.setAuth(session.access_token);
+    }
+
     if (session) {
       const shouldEnter =
         !appReady || event === 'SIGNED_IN' || event === 'INITIAL_SESSION';
       if (shouldEnter) {
         appReady = true;
         enterApp();
+      } else if (event === 'TOKEN_REFRESHED') {
+        void subscribeRealtime(true);
       }
       return;
     }
 
     appReady = false;
+    appScreenActive = false;
     showScreen('login-screen');
     if (realtimeChannel) {
       void client.removeChannel(realtimeChannel);
@@ -767,6 +834,10 @@ function initAuth(): void {
     if (reconnectTimer != null) {
       window.clearTimeout(reconnectTimer);
       reconnectTimer = null;
+    }
+    if (realtimeDebounceTimer != null) {
+      window.clearTimeout(realtimeDebounceTimer);
+      realtimeDebounceTimer = null;
     }
     watchersReady = false;
     realtimeOk = false;
