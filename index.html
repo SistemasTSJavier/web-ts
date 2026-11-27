@@ -81,8 +81,19 @@
     </header>
 
     <main class="app-main">
-      <div class="page-intro">
+      <!-- Izquierda (landscape): título + polo + lema -->
+      <aside class="app-brand-rail" aria-label="Marca Sala de Juntas">
         <h2 class="title-main">SALA DE JUNTAS</h2>
+        <div class="app-polo-wrap">
+          <img
+            src="/assets/polo.webp"
+            alt="Oficial Tactical Support"
+            class="app-polo"
+            width="280"
+            height="420"
+            decoding="async"
+          >
+        </div>
         <img
           src="/assets/eslogan.webp"
           alt="Vive el hábito de la excelencia"
@@ -91,41 +102,46 @@
           height="90"
           decoding="async"
         >
-      </div>
+      </aside>
 
-      <div class="toolbar">
-        <button type="button" class="btn-icon" id="btn-prev" aria-label="Día anterior">‹</button>
-        <span id="date-label" aria-live="polite"></span>
-        <button type="button" class="btn-icon" id="btn-next" aria-label="Día siguiente">›</button>
-      </div>
-
-      <h3 class="section-title">RESERVACIONES DEL DÍA</h3>
-      <div class="reservations-panel">
-        <div class="reservations-head" aria-hidden="true">
-          <span>Horario</span>
-          <span>Asunto</span>
-          <span>Colaboradores</span>
+      <!-- Derecha (landscape): fecha + reservaciones + horas -->
+      <section class="app-schedule-rail">
+        <div class="toolbar">
+          <button type="button" class="btn-icon" id="btn-prev" aria-label="Día anterior">‹</button>
+          <span id="date-label" aria-live="polite"></span>
+          <button type="button" class="btn-icon" id="btn-next" aria-label="Día siguiente">›</button>
         </div>
-        <ul id="reservations-list" class="reservations-list" aria-live="polite"></ul>
-      </div>
 
-      <h3 class="section-title">HORAS DISPONIBLES</h3>
-      <p id="schedule-status" class="schedule-status hidden" role="status" aria-live="polite"></p>
+        <div class="schedule-block reservations-block">
+          <h3 class="section-title">RESERVACIONES DEL DÍA</h3>
+          <div class="reservations-panel">
+            <div class="reservations-head" aria-hidden="true">
+              <span>Horario</span>
+              <span>Asunto</span>
+              <span>Colaboradores</span>
+            </div>
+            <ul id="reservations-list" class="reservations-list" aria-live="polite"></ul>
+          </div>
+        </div>
 
-      <div class="table-wrap">
-        <table class="schedule-table">
-          <thead>
-            <tr>
-              <th scope="col">HORA</th>
-              <th scope="col">ESTADO</th>
-            </tr>
-          </thead>
-          <tbody id="schedule-body">
-            <!-- Solo horas libres 08:00–18:00 -->
-          </tbody>
-        </table>
-      </div>
-
+        <div class="schedule-block hours-block">
+          <h3 class="section-title">HORAS DISPONIBLES</h3>
+          <p id="schedule-status" class="schedule-status hidden" role="status" aria-live="polite"></p>
+          <div class="table-wrap">
+            <table class="schedule-table">
+              <thead>
+                <tr>
+                  <th scope="col">HORA</th>
+                  <th scope="col">ESTADO</th>
+                </tr>
+              </thead>
+              <tbody id="schedule-body">
+                <!-- Solo horas libres 08:00–18:00 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </main>
 
     <button type="button" class="fab" id="btn-new-reservation">+ Nueva reservación</button>
