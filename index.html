@@ -65,6 +65,13 @@
   <!-- App principal -->
   <div id="app-screen" class="screen hidden">
     <header class="app-header">
+      <button
+        type="button"
+        class="btn-icon btn-fullscreen"
+        id="btn-fullscreen"
+        title="Pantalla completa"
+        aria-label="Pantalla completa"
+      >Pantalla completa</button>
       <div class="header-center">
         <span class="brand">TACTICAL</span>
         <img src="/assets/logo.png" alt="Logo Tactical Support" class="header-logo" onerror="this.style.display='none'">
@@ -84,7 +91,6 @@
           height="90"
           decoding="async"
         >
-        <p id="realtime-status" class="realtime-status hidden" role="status" aria-live="polite"></p>
       </div>
 
       <div class="toolbar">

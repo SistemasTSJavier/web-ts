@@ -509,7 +509,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 20;
-  padding: 0.9rem 1.25rem;
+  padding: 0.9rem 6.5rem;
   background: linear-gradient(90deg, var(--navy) 0%, var(--navy-mid) 55%, var(--navy) 100%);
   color: var(--paper);
   box-shadow: 0 6px 20px rgba(7, 21, 37, 0.25);
@@ -548,13 +548,20 @@ body {
   transition: background 0.2s ease;
 }
 
-.btn-logout {
+.btn-logout,
+.btn-fullscreen {
   font-family: var(--font-ui);
   font-size: 0.61rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   padding: 0.3rem 0.51rem;
+  white-space: nowrap;
+}
+
+.btn-fullscreen {
+  left: 1rem;
+  right: auto;
 }
 
 .btn-icon:hover {
@@ -613,34 +620,13 @@ textarea:focus-visible {
   mix-blend-mode: multiply;
 }
 
-.realtime-status {
-  display: inline-block;
-  margin: 0.65rem auto 0;
-  padding: 0.25rem 0.65rem;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.realtime-status.is-live {
-  color: #0b5d2a;
-  background: #e7f7ec;
-}
-
-.realtime-status.is-offline {
-  color: #8a5a00;
-  background: #fff4d9;
-}
-
 @media (max-width: 640px) {
   .app-eslogan {
     width: min(240px, 82%);
   }
 
   .app-header {
-    padding-left: 0.75rem;
+    padding-left: 4.5rem;
     padding-right: 4.25rem;
   }
 
@@ -657,10 +643,18 @@ textarea:focus-visible {
     height: 26px;
   }
 
-  .btn-logout {
-    right: 0.65rem;
+  .btn-logout,
+  .btn-fullscreen {
     font-size: 0.58rem;
     padding: 0.28rem 0.45rem;
+  }
+
+  .btn-logout {
+    right: 0.65rem;
+  }
+
+  .btn-fullscreen {
+    left: 0.65rem;
   }
 }
 

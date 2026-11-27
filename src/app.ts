@@ -59,12 +59,6 @@ function reservationAtHour(hour: number): Reservation | null {
 
 function setRealtimeBadge(connected: boolean): void {
   realtimeOk = connected;
-  const el = $('realtime-status');
-  if (!el) return;
-  el.textContent = connected ? 'En vivo' : 'Reconectando…';
-  el.classList.toggle('is-live', connected);
-  el.classList.toggle('is-offline', !connected);
-  el.classList.remove('hidden');
 }
 
 async function loadDay(opts?: { silent?: boolean }): Promise<void> {
@@ -877,6 +871,50 @@ function setupModalA11y(): void {
   });
 }
 
+function isFullscreenActive(): boolean {
+  return Boolean(
+    document.fullscreenElement ||
+      (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement,
+  );
+}
+
+function updateFullscreenButton(): void {
+  const btn = $('btn-fullscreen') as HTMLButtonElement | null;
+  if (!btn) return;
+  const active = isFullscreenActive();
+  btn.textContent = active ? 'Salir pantalla completa' : 'Pantalla completa';
+  btn.title = active ? 'Salir de pantalla completa' : 'Pantalla completa';
+  btn.setAttribute(
+    'aria-label',
+    active ? 'Salir de pantalla completa' : 'Pantalla completa',
+  );
+}
+
+async function toggleFullscreen(): Promise<void> {
+  const doc = document as Document & {
+    webkitExitFullscreen?: () => Promise<void> | void;
+    webkitFullscreenElement?: Element;
+  };
+  const root = document.documentElement as HTMLElement & {
+    webkitRequestFullscreen?: () => Promise<void> | void;
+  };
+
+  try {
+    if (isFullscreenActive()) {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
+    } else if (root.requestFullscreen) {
+      await root.requestFullscreen();
+    } else if (root.webkitRequestFullscreen) {
+      await root.webkitRequestFullscreen();
+    }
+  } catch (err) {
+    console.warn('[fullscreen]', err);
+  } finally {
+    updateFullscreenButton();
+  }
+}
+
 function initApp(): void {
   const logout = $('btn-logout');
   if (logout) {
@@ -884,6 +922,17 @@ function initApp(): void {
       void supabase?.auth.signOut();
     };
   }
+
+  const fullscreenBtn = $('btn-fullscreen');
+  if (fullscreenBtn) {
+    fullscreenBtn.onclick = () => {
+      void toggleFullscreen();
+    };
+  }
+  document.addEventListener('fullscreenchange', updateFullscreenButton);
+  document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+  updateFullscreenButton();
+}
 
   $('btn-new-reservation')!.onclick = () => {
     openModal('modal-form');
