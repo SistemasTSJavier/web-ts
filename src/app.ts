@@ -932,7 +932,6 @@ function initApp(): void {
   document.addEventListener('fullscreenchange', updateFullscreenButton);
   document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
   updateFullscreenButton();
-}
 
   $('btn-new-reservation')!.onclick = () => {
     openModal('modal-form');
