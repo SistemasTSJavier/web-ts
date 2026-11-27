@@ -629,7 +629,6 @@ textarea:focus-visible {
 }
 
 .app-polo-wrap {
-  --polo-bg: #bacbdc; /* mismo tono del fondo del video */
   position: relative;
   display: flex;
   justify-content: center;
@@ -640,7 +639,7 @@ textarea:focus-visible {
   margin: 0.85rem auto 0.35rem;
   padding: 0;
   border-radius: 16px;
-  background: var(--polo-bg);
+  background: transparent;
   overflow: hidden;
 }
 
@@ -655,13 +654,8 @@ textarea:focus-visible {
   min-height: 220px;
   object-fit: contain;
   object-position: center bottom;
-  background: var(--polo-bg);
+  background: transparent;
   border: none;
-  opacity: 1;
-  visibility: visible;
-  mix-blend-mode: normal;
-  filter: none;
-  cursor: pointer;
 }
 
 .app-eslogan {
@@ -1052,7 +1046,7 @@ textarea:focus-visible {
     min-height: 0;
     height: 100%;
     border-right: 1px solid var(--line);
-    background: #bacbdc;
+    background: transparent;
     border-radius: 14px;
   }
 
@@ -1073,7 +1067,7 @@ textarea:focus-visible {
     min-height: 0;
     height: 100%;
     border-radius: 12px;
-    background: #bacbdc;
+    background: transparent;
     overflow: hidden;
   }
 
@@ -1084,7 +1078,8 @@ textarea:focus-visible {
     min-height: 0;
     object-fit: contain;
     object-position: center bottom;
-    background: #bacbdc;
+    background: transparent;
+    mix-blend-mode: screen;
   }
 
   .app-eslogan {
